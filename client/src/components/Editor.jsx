@@ -1,7 +1,7 @@
-import React from 'react'
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Quill from 'quill';
-import 'quill/dist/quill.snow.css'
+import 'quill/dist/quill.snow.css';
+import { Socket, io } from 'socket.io-client';
 
 
 const toolbarOptions = [
@@ -21,14 +21,54 @@ const toolbarOptions = [
     ['clean']                                         
   ];
 const Editor = () => {
-    useEffect( () => {
-        const quill = new Quill('#editor', {
+  const [ socket, setSocket] = useState();
+  const [quill, setQuill] = useState();
+
+
+  useEffect( () => {
+        const quillServer = new Quill('#editor', {
             modules: {
               toolbar: toolbarOptions
             },
             theme: 'snow'
           });
+          setQuill(quillServer)
     }, [])
+
+    useEffect( () => {
+      const socketServer = io('http://localhost:9000');
+      setSocket(socketServer)
+      return () => {
+        socketServer.disconnect();
+      }
+    },[])
+
+    useEffect( () => {
+      if( socket === null || quill === null) return;
+      const handelChange = (delta, oldDelta, source) => {
+        if( source !== 'user') return;
+
+       socket && socket.emit('send-changes', delta);
+      };
+      quill &&quill.on('text-change', handelChange);
+
+      return () => {
+        quill && quill.off('text-change', handelChange);
+      }
+    },[quill, socket])
+
+    useEffect( () => {
+      if( socket === null || quill === null) return;
+      const handelChange = (delta) => {
+        quill && quill.updateContents(delta);
+      };
+      socket && socket.on('receive-changes', handelChange);
+
+      return () => {
+        socket && socket.off('receive-changes', handelChange);
+      }
+    },[quill, socket])
+
   return (
     <div className=' bg-gray-100 '>
         <div id='editor' className='w-3/4 min-h-screen bg-white shadow-custom mt-2 mx-auto mb-2'></div>
